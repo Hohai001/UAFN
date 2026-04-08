@@ -1,0 +1,19 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local tooling
+.claude/
+.codex
+
+# Training / model artifacts
+*.pth
+*.pt
+*.ckpt
+*.h5
+checkpoints/
+runs/
+logs/
+
+# System files
+.DS_Store

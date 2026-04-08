@@ -1,0 +1,43 @@
+{
+  "paths": {
+    "meta": "/mnt/f/dataset/CH-SIMS v2.0/ch-simsv2s/meta.csv",
+    "h5": "audio_features_v3_middle_layer.h5"
+  },
+  "meta_rows": 4403,
+  "expected_dim": 768,
+  "alignment": {
+    "h5_keys": 4338,
+    "matched_rows": 4338,
+    "coverage_ratio": 0.9852373381785147,
+    "missing_keys": 65,
+    "extra_keys": 0,
+    "bad_shape_keys": 0,
+    "wrong_dim_keys": 0
+  },
+  "vector_health": {
+    "num_vectors": 4338,
+    "dim": 768,
+    "nan_inf_rows": 0,
+    "zero_rows": 0,
+    "norm_mean": 22.850872039794922,
+    "norm_std": 6.2510271072387695,
+    "norm_min": 16.547962188720703,
+    "norm_max": 35.97023010253906,
+    "feat_mean_abs": 0.6169551014900208,
+    "feat_std_mean": 0.40633857250213623
+  },
+  "separability": {
+    "label_col": "annotation",
+    "split_col": "mode",
+    "valid": {
+      "accuracy": 0.3683385579937304,
+      "macro_f1": 0.2410717531896204,
+      "num_classes": 3
+    },
+    "test": {
+      "accuracy": 0.35819430814524045,
+      "macro_f1": 0.24202857448967374,
+      "num_classes": 3
+    }
+  }
+}
