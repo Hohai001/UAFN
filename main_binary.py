@@ -1,5 +1,6 @@
 import argparse
 import random
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -300,6 +301,22 @@ def str2bool(v):
     raise argparse.ArgumentTypeError(f"Invalid boolean value: {v}")
 
 
+class TeeStdout:
+    """Mirror stdout to both terminal and file."""
+
+    def __init__(self, terminal_stream, file_stream):
+        self.terminal_stream = terminal_stream
+        self.file_stream = file_stream
+
+    def write(self, data):
+        self.terminal_stream.write(data)
+        self.file_stream.write(data)
+
+    def flush(self):
+        self.terminal_stream.flush()
+        self.file_stream.flush()
+
+
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -352,6 +369,7 @@ def build_parser():
 
     parser.add_argument("--save_dir", type=str, default="checkpoints")
     parser.add_argument("--exp_name", type=str, default=None)
+    parser.add_argument("--save_console_log", type=str2bool, default=True)
     return parser
 
 
@@ -370,6 +388,17 @@ def train(args):
         use_kl_loss_override=args.use_kl_loss,
     )
     exp_name = args.exp_name or exp_name_from_ablation(ablation_cfg.ablation_mode)
+    save_root = Path(args.save_dir) / exp_name
+    save_root.mkdir(parents=True, exist_ok=True)
+
+    original_stdout = sys.stdout
+    log_stream = None
+    if args.save_console_log:
+        log_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        console_log_path = save_root / f"train_console_{exp_name}_{log_timestamp}.log"
+        log_stream = open(console_log_path, "a", encoding="utf-8", buffering=1)
+        sys.stdout = TeeStdout(original_stdout, log_stream)
+        print(f"[Log] Console output will also be saved to: {console_log_path}")
 
     text_path = resolve_text_feature_path(args, ablation_cfg)
     audio_path = Path(args.audio_feature_path)
@@ -439,9 +468,8 @@ def train(args):
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=5e-3)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2)
 
-    save_root = Path(args.save_dir) / exp_name
-    save_root.mkdir(parents=True, exist_ok=True)
-    best_valid_f1 = 0.0
+    best_valid_acc = 0.0
+    best_valid_f1_at_best_acc = 0.0
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -567,12 +595,19 @@ def train(args):
         valid_epoch_acc = valid_correct / valid_total * 100
         valid_f1 = f1_score(all_labels, all_preds, average="macro")
 
-        if valid_f1 > best_valid_f1:
-            best_valid_f1 = valid_f1
+        # 以 Acc 作为最优模型选择标准；F1 仅用于 Acc 相同情况下的并列决策
+        if (valid_epoch_acc > best_valid_acc) or (
+            abs(valid_epoch_acc - best_valid_acc) < 1e-12 and valid_f1 > best_valid_f1_at_best_acc
+        ):
+            best_valid_acc = valid_epoch_acc
+            best_valid_f1_at_best_acc = valid_f1
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             save_path = save_root / f"best_model_{exp_name}_{timestamp}.pth"
             torch.save(model.state_dict(), save_path)
-            print(f"🌟 New best model saved! Valid F1: {valid_f1:.4f} | Path: {save_path}")
+            print(
+                f"🌟 New best model saved! Valid Acc: {valid_epoch_acc:.2f}% | "
+                f"Valid F1: {valid_f1:.4f} | Path: {save_path}"
+            )
 
         train_batch_count = len(train_loader)
         val_batch_count = len(valid_loader)
@@ -605,7 +640,15 @@ def train(args):
             f"{val_uncertainty_msg}"
         )
 
-    print(f"\n🎉 Binary training completed! Best validation F1: {best_valid_f1:.4f} | Exp: {exp_name}")
+    print(
+        f"\n🎉 Binary training completed! Best validation Acc: {best_valid_acc:.2f}% | "
+        f"F1@BestAcc: {best_valid_f1_at_best_acc:.4f} | Exp: {exp_name}"
+    )
+
+    if log_stream is not None:
+        sys.stdout.flush()
+        sys.stdout = original_stdout
+        log_stream.close()
 
 
 if __name__ == "__main__":

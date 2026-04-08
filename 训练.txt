@@ -1,0 +1,5 @@
+python main_binary.py --ablation_mode none
+python main_binary.py --ablation_mode wo_edl
+python main_binary.py --ablation_mode wo_gating
+python main_binary.py --ablation_mode wo_macbert
+python main_binary.py --ablation_mode wo_kl
